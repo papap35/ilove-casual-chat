@@ -111,7 +111,8 @@ function classify(text) {
 }
 
 function parseLine(raw) {
-  const lines = raw.replace(/\r/g, "").split("\n");
+  // 移除 LINE 匯出夾帶的雙向文字隔離字元 (U+2066-2069)
+  const lines = raw.replace(/\r/g, "").replace(/[\u2066-\u2069]/g, "").split("\n");
   const dateRe = /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?!\d)/;
   const timeRe = /^(上午|下午|AM|PM)?\s*(\d{1,2}):(\d{2})$/i;
   const msgs = [];
@@ -126,7 +127,7 @@ function parseLine(raw) {
       const ap = (tm[1] || "").toUpperCase();
       if (ap === "下午" || ap === "PM") { if (h < 12) h += 12; }
       else if (ap === "上午" || ap === "AM") { if (h === 12) h = 0; }
-      if (parts.length >= 3) {
+      if (parts.length >= 3 && parts[1].trim() !== "") {
         cur = {
           ts: new Date(ymd[0], ymd[1] - 1, ymd[2], h, m).getTime(),
           name: parts[1],
@@ -134,7 +135,7 @@ function parseLine(raw) {
         };
         msgs.push(cur);
       } else {
-        cur = null; // 系統訊息 (加入/退出群組等)
+        cur = null; // 系統訊息 (加入/退出群組等,名字欄為空或只有兩欄)
       }
       continue;
     }
@@ -165,7 +166,7 @@ function computeStats(msgs) {
   const people = new Map();
   const get = (n) => {
     if (!people.has(n)) people.set(n, { name: n, messages: 0, textChars: 0, photos: 0, stickers: 0, voice: 0, unsent: 0,
-      lateNight: 0, openers: 0, questions: 0, laughs: 0, replies: [], emojis: new Map(), hours: Array(24).fill(0) });
+      lateNight: 0, openers: 0, questions: 0, laughs: 0, emojiTokens: 0, replies: [], emojis: new Map(), hours: Array(24).fill(0) });
     return people.get(n);
   };
   const emojiRe = /\p{Extended_Pictographic}/gu;
@@ -186,6 +187,7 @@ function computeStats(msgs) {
       p.textChars += m.text.length;
       if (/[?？]/.test(m.text)) p.questions++;
       if (/哈|XD|笑死|www|lol/i.test(m.text)) p.laughs++;
+      p.emojiTokens += (m.text.match(/\(emoji\)/g) || []).length; // 匯出時 emoji 會被換成 "(emoji)"
       for (const e of m.text.match(emojiRe) || []) p.emojis.set(e, (p.emojis.get(e) || 0) + 1);
     }
     const day = fmtDate(m.ts);
@@ -202,7 +204,7 @@ function computeStats(msgs) {
   const list = [...people.values()].sort((a, b) => b.messages - a.messages).map((p) => ({
     name: p.name, messages: p.messages, avgChars: p.messages ? +(p.textChars / p.messages).toFixed(1) : 0,
     photos: p.photos, stickers: p.stickers, voice: p.voice, unsent: p.unsent,
-    lateNightMessages: p.lateNight, conversationOpeners: p.openers, questions: p.questions, laughs: p.laughs,
+    emojiCount: p.emojiTokens, lateNightMessages: p.lateNight, conversationOpeners: p.openers, questions: p.questions, laughs: p.laughs,
     medianReplyMinutes: p.replies.length ? +median(p.replies).toFixed(1) : null,
     peakHour: p.hours.indexOf(Math.max(...p.hours)),
     topEmojis: [...p.emojis.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([e, c]) => `${e}×${c}`),
@@ -275,7 +277,8 @@ ${TONES[tone]}
 4. 內梗、口頭禪要引用對話中真的重複出現的詞。
 5. 統計數字以提供的 <stats> 為準,不要自己重算。
 6. 這是娛樂用途;若內容涉及嚴重衝突、霸凌或自傷,語氣改為認真關切,不要開玩笑。
-7. 每個欄位寫得具體、有畫面,避免空泛套話(例如「感情很好」「互動頻繁」)。`;
+7. 對話中的「(emoji)」是 LINE 匯出時 emoji 被替換的佔位符,不是講話內容;「[sticker]」代表貼圖。
+8. 每個欄位寫得具體、有畫面,避免空泛套話(例如「感情很好」「互動頻繁」)。`;
 }
 
 const SCHEMA = {
