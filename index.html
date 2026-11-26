@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LINE 對話報告</title>
+<style>
+  :root { --bg:#fafaf7; --fg:#1d1d1b; --muted:#6b6b66; --card:#fff; --line:#e4e2da; --accent:#06a05a; --warn:#b45309; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16171a; --fg:#ececea; --muted:#9a9a94; --card:#1f2024; --line:#33343a; --accent:#3ad08a; --warn:#f0a35e; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.7 system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  h2 { font-size:1.15rem; margin:28px 0 10px; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin:12px 0; }
+  label { display:block; font-size:.9rem; color:var(--muted); margin:12px 0 4px; }
+  input[type=text], input[type=password], input[type=number], select { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); font:inherit; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:560px){ .row { grid-template-columns:1fr; } }
+  button { padding:10px 18px; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.ghost { background:transparent; color:var(--fg); border:1px solid var(--line); font-weight:400; }
+  .note { font-size:.85rem; color:var(--muted); }
+  .warn { color:var(--warn); }
+  #log { white-space:pre-wrap; font-size:.9rem; color:var(--muted); margin-top:10px; }
+  .quote { border-left:3px solid var(--accent); padding:2px 12px; margin:10px 0; }
+  .quote small { color:var(--muted); display:block; }
+  .tag { display:inline-block; background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:0 10px; margin:2px 4px 2px 0; font-size:.88rem; }
+  table { border-collapse:collapse; width:100%; font-size:.9rem; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+  .big { font-size:1.4rem; font-weight:700; }
+</style>
+</head>
+<body>
+<main>
+  <h1>LINE 對話報告</h1>
+  <p class="sub">上傳 LINE 匯出的 .txt,Claude 讀完後幫你寫一份有趣的對話報告。</p>
+
+  <section class="card" id="setup">
+    <label for="file">1. LINE 對話檔 (.txt)</label>
+    <input id="file" type="file" accept=".txt,text/plain">
+    <p class="note">LINE 聊天室右上角 ≡ → 其他設定 → 傳送聊天記錄 → 以文字檔傳送。</p>
+
+    <div class="row">
+      <div>
+        <label for="kind">2. 對話類型</label>
+        <select id="kind">
+          <option>朋友群組</option><option>好友兩人</option><option>情侶/曖昧</option>
+          <option>家族群組</option><option>公司/社團群組</option>
+        </select>
+      </div>
+      <div>
+        <label for="tone">語氣</label>
+        <select id="tone">
+          <option value="毒舌">毒舌 (損但有愛)</option>
+          <option value="中立">中立觀察</option>
+          <option value="溫柔">溫柔鼓勵</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="model">模型</label>
+        <select id="model">
+          <option value="claude-opus-5-5">Claude Opus 5.5 (品質最好)</option>
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (較便宜)</option>
+          <option value="claude-haiku-5-5">Claude Haiku 5.5 (最便宜)</option>
+        </select>
+      </div>
+      <div>
+        <label for="limit">只分析最近 N 則 (0 = 全部)</label>
+        <input id="limit" type="number" min="0" value="0">
+      </div>
+    </div>
+
+    <label for="key">3. Anthropic API Key</label>
+    <input id="key" type="password" placeholder="sk-ant-..." autocomplete="off">
+    <label class="note"><input id="remember" type="checkbox"> 記在這個瀏覽器 (localStorage)</label>
+    <p class="note warn">Key 只存在你的瀏覽器,請求直接送到 api.anthropic.com。請用自己的 key,不要把含 key 的頁面公開。對話內容會送給 Anthropic 處理。</p>
+
+    <p><button id="go" disabled>分析</button></p>
+    <div id="log"></div>
+  </section>
+
+  <div id="report"></div>
+</main>
+
+<script type="module">
+import Anthropic from "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.14.0/+esm";
+
+// <parser>
+const KIND_PATTERNS = [
+  [/^\[?(照片|Photo)\]?$/i, "photo"],
+  [/^\[?(貼圖|Sticker)\]?$/i, "sticker"],
+  [/^\[?(語音訊息|Voice message)\]?$/i, "voice"],
+  [/^\[?(影片|Video)\]?$/i, "video"],
+  [/^\[?(檔案|File)\]?$/i, "file"],
+  [/^\[?(位置資訊|Location)\]?$/i, "location"],
+  [/^(已收回訊息|.*已收回訊息|.*unsent a message.*)$/i, "unsent"],
+  [/^☎/, "call"],
+];
+
+function classify(text) {
+  const t = text.trim();
+  for (const [re, kind] of KIND_PATTERNS) if (re.test(t)) return kind;
+  return "text";
+}
+
+function parseLine(raw) {
+  const lines = raw.replace(/\r/g, "").split("\n");
+  const dateRe = /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?!\d)/;
+  const timeRe = /^(上午|下午|AM|PM)?\s*(\d{1,2}):(\d{2})$/i;
+  const msgs = [];
+  let ymd = null, cur = null;
+
+  for (const line of lines) {
+    const parts = line.split("\t");
+    const tm = parts.length >= 2 ? parts[0].match(timeRe) : null;
+    if (tm && ymd) {
+      let h = +tm[2];
+      const m = +tm[3];
+      const ap = (tm[1] || "").toUpperCase();
+      if (ap === "下午" || ap === "PM") { if (h < 12) h += 12; }
+      else if (ap === "上午" || ap === "AM") { if (h === 12) h = 0; }
+      if (parts.length >= 3) {
+        cur = {
+          ts: new Date(ymd[0], ymd[1] - 1, ymd[2], h, m).getTime(),
+          name: parts[1],
+          text: parts.slice(2).join("\t"),
+        };
+        msgs.push(cur);
+      } else {
+        cur = null; // 系統訊息 (加入/退出群組等)
+      }
+      continue;
+    }
+    if (!line.includes("\t")) {
+      const dm = line.trim().match(dateRe);
+      if (dm && line.trim().length < 30) { ymd = [+dm[1], +dm[2], +dm[3]]; cur = null; continue; }
+    }
+    if (cur && line.length) cur.text += "\n" + line; // 多行訊息的後續行
+  }
+
+  for (const m of msgs) {
+    if (m.text.includes("\n") && m.text.startsWith('"') && m.text.endsWith('"')) {
+      m.text = m.text.slice(1, -1);
+    }
+    m.kind = classify(m.text);
+  }
+  return msgs;
+}
+
+const pad = (n) => String(n).padStart(2, "0");
+const fmtDate = (ts) => { const d = new Date(ts); return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`; };
+const fmtTime = (ts) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+function median(a) { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; }
+
+function computeStats(msgs) {
+  const GAP = 6 * 3600e3;
+  const people = new Map();
+  const get = (n) => {
+    if (!people.has(n)) people.set(n, { name: n, messages: 0, textChars: 0, photos: 0, stickers: 0, voice: 0, unsent: 0,
+      lateNight: 0, openers: 0, questions: 0, laughs: 0, replies: [], emojis: new Map(), hours: Array(24).fill(0) });
+    return people.get(n);
+  };
+  const emojiRe = /\p{Extended_Pictographic}/gu;
+  const perDay = new Map();
+  let prev = null, longestSilence = { ms: 0, from: 0 };
+
+  for (const m of msgs) {
+    const p = get(m.name);
+    p.messages++;
+    const h = new Date(m.ts).getHours();
+    p.hours[h]++;
+    if (h < 5) p.lateNight++;
+    if (m.kind === "photo") p.photos++;
+    else if (m.kind === "sticker") p.stickers++;
+    else if (m.kind === "voice") p.voice++;
+    else if (m.kind === "unsent") p.unsent++;
+    else if (m.kind === "text") {
+      p.textChars += m.text.length;
+      if (/[?？]/.test(m.text)) p.questions++;
+      if (/哈|XD|笑死|www|lol/i.test(m.text)) p.laughs++;
+      for (const e of m.text.match(emojiRe) || []) p.emojis.set(e, (p.emojis.get(e) || 0) + 1);
+    }
+    const day = fmtDate(m.ts);
+    perDay.set(day, (perDay.get(day) || 0) + 1);
+    if (prev) {
+      const gap = m.ts - prev.ts;
+      if (gap > longestSilence.ms) longestSilence = { ms: gap, from: prev.ts };
+      if (gap > GAP) p.openers++;
+      else if (prev.name !== m.name) p.replies.push(gap / 60e3);
+    } else p.openers++;
+    prev = m;
+  }
+
+  const list = [...people.values()].sort((a, b) => b.messages - a.messages).map((p) => ({
+    name: p.name, messages: p.messages, avgChars: p.messages ? +(p.textChars / p.messages).toFixed(1) : 0,
+    photos: p.photos, stickers: p.stickers, voice: p.voice, unsent: p.unsent,
+    lateNightMessages: p.lateNight, conversationOpeners: p.openers, questions: p.questions, laughs: p.laughs,
+    medianReplyMinutes: p.replies.length ? +median(p.replies).toFixed(1) : null,
+    peakHour: p.hours.indexOf(Math.max(...p.hours)),
+    topEmojis: [...p.emojis.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([e, c]) => `${e}×${c}`),
+  }));
+  const busiest = [...perDay.entries()].sort((a, b) => b[1] - a[1])[0];
+  return {
+    totalMessages: msgs.length,
+    from: msgs.length ? fmtDate(msgs[0].ts) : null,
+    to: msgs.length ? fmtDate(msgs[msgs.length - 1].ts) : null,
+    activeDays: perDay.size,
+    busiestDay: busiest ? { date: busiest[0], messages: busiest[1] } : null,
+    longestSilenceDays: +(longestSilence.ms / 86400e3).toFixed(1),
+    longestSilenceStart: longestSilence.ms ? fmtDate(longestSilence.from) : null,
+    people: list,
+  };
+}
+
+function toTranscript(msgs) {
+  const out = []; let day = "";
+  for (const m of msgs) {
+    const d = fmtDate(m.ts);
+    if (d !== day) { out.push(`## ${d}`); day = d; }
+    const body = m.kind === "text" ? m.text.replace(/\n/g, " ⏎ ") : `[${m.kind}]`;
+    out.push(`${fmtTime(m.ts)} ${m.name}: ${body}`);
+  }
+  return out.join("\n");
+}
+
+function chunkTranscript(text, maxChars) {
+  const chunks = []; let cur = [], len = 0;
+  for (const line of text.split("\n")) {
+    if (len + line.length > maxChars && cur.length) { chunks.push(cur.join("\n")); cur = []; len = 0; }
+    cur.push(line); len += line.length + 1;
+  }
+  if (cur.length) chunks.push(cur.join("\n"));
+  return chunks;
+}
+
+const squash = (s) => s.replace(/\s+/g, "");
+// 只保留能在原文逐字找到的引用,擋掉模型編造的名場面
+function verifyQuotes(highlights, msgs) {
+  const hay = squash(msgs.filter((m) => m.kind === "text").map((m) => m.text).join("\n"));
+  const kept = highlights.filter((h) => { const q = squash(h.quote || ""); return q.length > 1 && hay.includes(q); });
+  return { kept, dropped: highlights.length - kept.length };
+}
+// </parser>
+
+// ---------- Prompts ----------
+const PRICE = { "claude-opus-5-5": [4, 20], "claude-sonnet-5-5": [2, 10], "claude-haiku-5-5": [0.1, 0.5] };
+const DIGEST_MODEL = "claude-haiku-5-5";
+const CHUNK_CHARS = 60000;
+const DIRECT_LIMIT = 90000; // 超過這個字數才先分段摘要
+
+const TONES = {
+  "毒舌": "口吻:犀利、幽默、愛吐槽,像講話很直的好朋友。損的是行為模式,不是人格;好話跟壞話一樣直說。",
+  "中立": "口吻:冷靜、觀察式、有點冷幽默。",
+  "溫柔": "口吻:溫暖、鼓勵、看見每個人的優點,但仍誠實。",
+};
+
+function systemPrompt(kind, tone) {
+  return `你是一位專門閱讀 LINE 聊天記錄、寫成有趣報告的「對話觀察員」。用台灣繁體中文寫作。
+
+對話類型:${kind}
+${TONES[tone]}
+
+規則:
+1. 只根據提供的對話與統計寫,不知道的事(通話內容、照片、現實發生的事)不要編造。
+2. 用同一套標準看每一個人,不偏袒任何人。評論行為模式,不攻擊人格。
+3. 「highlights.quote」必須是對話原文逐字複製,不可改寫、不可合併多句;找不到合適原句就少寫幾則,不要編。
+4. 內梗、口頭禪要引用對話中真的重複出現的詞。
+5. 統計數字以提供的 <stats> 為準,不要自己重算。
+6. 這是娛樂用途;若內容涉及嚴重衝突、霸凌或自傷,語氣改為認真關切,不要開玩笑。
+7. 每個欄位寫得具體、有畫面,避免空泛套話(例如「感情很好」「互動頻繁」)。`;
+}
+
+const SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["headline", "tldr", "vibe", "people", "highlights", "inside_jokes", "timeline", "awards", "closing"],
+  properties: {
+    headline: { type: "string", description: "報告標題,一句有梗的話" },
+    tldr: { type: "string", description: "三句內總結這段對話" },
+    vibe: { type: "string", description: "整體氛圍與關係動態,150 字內" },
+    people: { type: "array", items: { type: "object", additionalProperties: false,
+      required: ["name", "title", "description", "signature_phrases", "quirks"],
+      properties: {
+        name: { type: "string" }, title: { type: "string", description: "稱號,例如『凌晨兩點的哲學家』" },
+        description: { type: "string" },
+        signature_phrases: { type: "array", items: { type: "string" } },
+        quirks: { type: "array", items: { type: "string" } },
+      } } },
+    highlights: { type: "array", items: { type: "object", additionalProperties: false,
+      required: ["quote", "speaker", "date", "comment"],
+      properties: { quote: { type: "string" }, speaker: { type: "string" }, date: { type: "string" }, comment: { type: "string" } } } },
+    inside_jokes: { type: "array", items: { type: "object", additionalProperties: false,
+      required: ["term", "meaning"], properties: { term: { type: "string" }, meaning: { type: "string" } } } },
+    timeline: { type: "array", items: { type: "object", additionalProperties: false,
+      required: ["when", "event"], properties: { when: { type: "string" }, event: { type: "string" } } } },
+    awards: { type: "array", items: { type: "object", additionalProperties: false,
+      required: ["award", "winner", "reason"],
+      properties: { award: { type: "string" }, winner: { type: "string" }, reason: { type: "string" } } } },
+    closing: { type: "string", description: "結語,一兩句" },
+  },
+};
+
+// ---------- UI ----------
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) k === "class" ? (n.className = v) : n.setAttribute(k, v);
+  for (const k of kids.flat()) if (k != null) n.append(k.nodeType ? k : document.createTextNode(String(k)));
+  return n;
+};
+const log = (s) => { $("log").textContent = s; };
+
+let parsed = null;
+try { const k = localStorage.getItem("lcr_key"); if (k) { $("key").value = k; $("remember").checked = true; } } catch {}
+
+$("file").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  parsed = null; $("go").disabled = true;
+  if (!f) return;
+  const msgs = parseLine(await f.text());
+  if (msgs.length < 20) { log("解析不到足夠的訊息。請確認是 LINE 匯出的 .txt (含「時間<Tab>名字<Tab>內容」格式)。"); return; }
+  parsed = msgs;
+  const names = new Set(msgs.map((m) => m.name));
+  log(`讀到 ${msgs.length} 則訊息、${names.size} 位發言者,${fmtDate(msgs[0].ts)} ~ ${fmtDate(msgs[msgs.length - 1].ts)}`);
+  $("go").disabled = false;
+});
+
+$("go").addEventListener("click", run);
+
+async function run() {
+  const key = $("key").value.trim();
+  if (!key) { log("請輸入 API key。"); return; }
+  try { $("remember").checked ? localStorage.setItem("lcr_key", key) : localStorage.removeItem("lcr_key"); } catch {}
+
+  const limit = Math.max(0, parseInt($("limit").value, 10) || 0);
+  const msgs = limit && parsed.length > limit ? parsed.slice(-limit) : parsed;
+  const model = $("model").value, kind = $("kind").value, tone = $("tone").value;
+  const stats = computeStats(msgs);
+  const transcript = toTranscript(msgs);
+  const needDigest = transcript.length > DIRECT_LIMIT;
+
+  const [pin, pout] = PRICE[model];
+  const finalIn = needDigest ? 40000 : transcript.length; // 中文約 1 字 ≈ 1 token (保守估計)
+  const est = (transcript.length * PRICE[DIGEST_MODEL][0] * (needDigest ? 1 : 0) + finalIn * pin + 8000 * pout) / 1e6;
+  if (!confirm(`共 ${msgs.length} 則 / 約 ${transcript.length.toLocaleString()} 字。\n預估費用約 US$${est.toFixed(2)} (粗估)。\n確定要送出分析嗎?對話內容會傳給 Anthropic。`)) return;
+
+  $("go").disabled = true; $("report").replaceChildren();
+  const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
+
+  try {
+    let material;
+    if (needDigest) {
+      const chunks = chunkTranscript(transcript, CHUNK_CHARS);
+      const digests = new Array(chunks.length);
+      let done = 0, next = 0;
+      const worker = async () => {
+        while (next < chunks.length) {
+          const i = next++;
+          const r = await client.messages.create({
+            model: DIGEST_MODEL, max_tokens: 4000, output_config: { effort: "low" },
+            system: "你是聊天記錄整理員,用台灣繁體中文。只根據提供內容整理,不要編造。",
+            messages: [{ role: "user", content:
+`下面是 LINE 對話的第 ${i + 1}/${chunks.length} 段。請條列整理(總共 1500 字內):
+1. 發生的重要事件(依時間,附日期)
+2. 每位發言者在這段的語氣、行為特色
+3. 重複出現的內梗、口頭禪(附原文)
+4. 情緒轉折、衝突或有趣的互動
+5. 5~8 句精彩原句(必須逐字照抄,標註說話者與日期)
+
+<chat>
+${chunks[i]}
+</chat>` }],
+          });
+          digests[i] = r.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+          log(`整理對話中… ${++done}/${chunks.length} 段`);
+        }
+      };
+      log(`整理對話中… 0/${chunks.length} 段`);
+      await Promise.all([worker(), worker(), worker()]);
+      material = digests.map((d, i) => `### 第 ${i + 1} 段摘要\n${d}`).join("\n\n");
+    } else material = transcript;
+
+    log("Claude 正在寫報告…");
+    const stream = client.messages.stream({
+      model, max_tokens: 32000,
+      output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA } },
+      system: systemPrompt(kind, tone),
+      messages: [{ role: "user", content:
+`請根據以下資料寫報告。
+
+<stats>
+${JSON.stringify(stats.people.slice(0, 12))}
+</stats>
+
+<overview>
+${JSON.stringify({ ...stats, people: undefined })}
+</overview>
+
+<${needDigest ? "digest" : "chat"}>
+${material}
+</${needDigest ? "digest" : "chat"}>` }],
+    });
+    let chars = 0;
+    stream.on("text", (t) => { chars += t.length; log(`Claude 正在寫報告… ${chars} 字`); });
+    const final = await stream.finalMessage();
+
+    if (final.stop_reason === "refusal") throw new Error("模型拒絕處理這段內容。");
+    if (final.stop_reason === "max_tokens") throw new Error("報告太長被截斷,請減少分析範圍再試。");
+    const text = final.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+    const report = JSON.parse(text);
+    const v = verifyQuotes(report.highlights, msgs);
+    report.highlights = v.kept;
+    render(report, stats, v.dropped, final.usage);
+    log("完成。");
+  } catch (e) {
+    log(e instanceof Anthropic.APIError ? `API 錯誤 (${e.status}):${e.message}` : `錯誤:${e.message}`);
+  } finally { $("go").disabled = false; }
+}
+
+function render(r, stats, dropped, usage) {
+  const root = $("report");
+  root.replaceChildren(
+    el("h1", {}, r.headline),
+    el("p", { class: "sub" }, `${stats.from} ~ ${stats.to} · ${stats.totalMessages} 則 · ${stats.activeDays} 天有聊天`),
+    el("div", { class: "card" }, el("div", { class: "big" }, r.tldr), el("p", {}, r.vibe)),
+
+    el("h2", {}, "成員檔案"),
+    r.people.map((p) => {
+      const s = stats.people.find((x) => x.name === p.name);
+      return el("div", { class: "card" },
+        el("div", { class: "big" }, `${p.name} · ${p.title}`),
+        el("p", {}, p.description),
+        p.signature_phrases.map((t) => el("span", { class: "tag" }, `「${t}」`)),
+        el("ul", {}, p.quirks.map((q) => el("li", {}, q))),
+        s ? el("p", { class: "note" }, `${s.messages} 則 · 平均 ${s.avgChars} 字 · 深夜發言 ${s.lateNightMessages} · 開話題 ${s.conversationOpeners} 次` +
+          (s.medianReplyMinutes != null ? ` · 回覆中位數 ${s.medianReplyMinutes} 分` : "")) : null);
+    }),
+
+    el("h2", {}, "頒獎典禮"),
+    r.awards.map((a) => el("div", { class: "card" }, el("strong", {}, `${a.award} → ${a.winner}`), el("div", {}, a.reason))),
+
+    el("h2", {}, "名場面"),
+    r.highlights.map((h) => el("div", { class: "quote" }, `「${h.quote}」`, el("small", {}, `${h.speaker} · ${h.date}`), el("div", {}, h.comment))),
+    dropped ? el("p", { class: "note" }, `已過濾 ${dropped} 則無法對應原文的引用。`) : null,
+
+    el("h2", {}, "內梗辭典"),
+    r.inside_jokes.map((j) => el("div", {}, el("strong", {}, j.term), `:${j.meaning}`)),
+
+    el("h2", {}, "時間軸"),
+    el("ul", {}, r.timeline.map((t) => el("li", {}, el("strong", {}, t.when), ` ${t.event}`))),
+
+    el("h2", {}, "數字統計"),
+    el("div", { class: "card", style: "overflow-x:auto" }, el("table", {},
+      el("tr", {}, ["名字", "訊息", "貼圖", "照片", "收回", "深夜", "最活躍時", "常用表情"].map((h) => el("th", {}, h))),
+      stats.people.slice(0, 12).map((p) => el("tr", {}, [p.name, p.messages, p.stickers, p.photos, p.unsent, p.lateNightMessages, `${p.peakHour}點`, p.topEmojis.join(" ")].map((c) => el("td", {}, c)))))),
+
+    el("p", {}, r.closing),
+    el("p", { class: "note" }, `本報告為 AI 依文字內容產生的娛樂用途分析,不代表事實。 (輸入 ${usage.input_tokens} / 輸出 ${usage.output_tokens} tokens)`),
+    el("button", { class: "ghost", id: "dl" }, "下載 JSON"));
+  $("dl").onclick = () => {
+    const a = el("a", { href: URL.createObjectURL(new Blob([JSON.stringify({ report: r, stats }, null, 2)], { type: "application/json" })), download: "line-report.json" });
+    a.click();
+  };
+  root.scrollIntoView({ behavior: "smooth" });
+}
+</script>
+</body>
+</html>
