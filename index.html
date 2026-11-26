@@ -5,17 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LINE 對話報告</title>
 <style>
-  :root { --bg:#fafaf7; --fg:#1d1d1b; --muted:#6b6b66; --card:#fff; --line:#e4e2da; --accent:#06a05a; --warn:#b45309; }
+  :root {
+    --bg:#fafaf7; --fg:#1d1d1b; --muted:#6b6b66; --card:#fff; --line:#e4e2da; --accent:#06a05a; --warn:#b45309;
+    --t1:#ffc9d4; --t2:#ffd3bd; --t3:#c3f0df; --t4:#f8ebb0; --t5:#d9cffa; --t6:#f0e6dc; --tfg:#2b2118; --track:rgba(0,0,0,.12);
+    --bubble:#fff; --mine:#bdeec6; --mine-fg:#14301c;
+  }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#16171a; --fg:#ececea; --muted:#9a9a94; --card:#1f2024; --line:#33343a; --accent:#3ad08a; --warn:#f0a35e; }
+    :root {
+      --bg:#16171a; --fg:#ececea; --muted:#9a9a94; --card:#1f2024; --line:#33343a; --accent:#3ad08a; --warn:#f0a35e;
+      --t1:#4b2a35; --t2:#4a3226; --t3:#1f4137; --t4:#463f1c; --t5:#37315a; --t6:#2c2823; --tfg:#f3ebe4; --track:rgba(255,255,255,.14);
+      --bubble:#34353b; --mine:#1f5a38; --mine-fg:#e8f7ec;
+    }
   }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.7 system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.75 system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif; }
   main { max-width:760px; margin:0 auto; padding:24px 16px 80px; }
-  h1 { font-size:1.6rem; margin:0 0 4px; }
-  h2 { font-size:1.15rem; margin:28px 0 10px; }
+  h1 { font-size:1.5rem; margin:0 0 4px; }
+  h2 { font-size:1.2rem; margin:32px 0 10px; }
   .sub { color:var(--muted); margin:0 0 20px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin:12px 0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin:12px 0; }
+  .tint { border:0; color:var(--tfg); }
+  .tint h3 { margin:0 0 10px; font-size:.95rem; font-weight:600; opacity:.85; }
+  .t1{background:var(--t1)} .t2{background:var(--t2)} .t3{background:var(--t3)} .t4{background:var(--t4)} .t5{background:var(--t5)} .t6{background:var(--t6)}
+  .cal { background:#141830; color:#f5e6b8; }
   label { display:block; font-size:.9rem; color:var(--muted); margin:12px 0 4px; }
   input[type=text], input[type=password], input[type=number], select { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); font:inherit; }
   .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -26,27 +38,59 @@
   .note { font-size:.85rem; color:var(--muted); }
   .warn { color:var(--warn); }
   #log { white-space:pre-wrap; font-size:.9rem; color:var(--muted); margin-top:10px; }
-  .quote { border-left:3px solid var(--accent); padding:2px 12px; margin:10px 0; }
-  .quote small { color:var(--muted); display:block; }
-  .tag { display:inline-block; background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:0 10px; margin:2px 4px 2px 0; font-size:.88rem; }
-  table { border-collapse:collapse; width:100%; font-size:.9rem; }
-  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
-  .big { font-size:1.4rem; font-weight:700; }
+  .num { font-size:2.2rem; font-weight:800; line-height:1.15; }
+  .unit { font-size:.9rem; opacity:.7; margin-left:6px; font-weight:400; }
+  .rb { display:grid; grid-template-columns:minmax(90px,150px) 1fr auto; gap:10px; align-items:center; margin:6px 0; font-size:.92rem; }
+  .rb .rr { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; min-width:64px; }
+  .bar { height:10px; border-radius:99px; background:var(--track); overflow:hidden; }
+  .bar i { display:block; height:100%; border-radius:99px; }
+  .donutwrap { display:flex; gap:18px; align-items:center; flex-wrap:wrap; }
+  .donut { width:110px; height:110px; border-radius:50%; flex:none; -webkit-mask:radial-gradient(circle 33px,transparent 98%,#000 100%); mask:radial-gradient(circle 33px,transparent 98%,#000 100%); }
+  .legend { flex:1; min-width:180px; font-size:.92rem; }
+  .legend div { display:flex; justify-content:space-between; gap:8px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
+  .calgrid { display:grid; grid-template-columns:52px repeat(31,1fr); gap:2px; font-size:.7rem; align-items:center; }
+  .calgrid .c { aspect-ratio:1; border-radius:3px; min-width:0; }
+  .hours { display:flex; align-items:flex-end; gap:3px; height:90px; }
+  .hours i { flex:1; border-radius:3px 3px 0 0; background:#c9b57a; min-height:2px; }
+  .hours i.night { background:#5a4500; }
+  .hlab { display:flex; justify-content:space-between; font-size:.72rem; opacity:.7; margin-top:4px; }
+  .msgs .mb { background:var(--bubble); color:var(--fg); border-radius:14px; padding:6px 12px; margin:6px 0; max-width:92%; width:fit-content; white-space:pre-wrap; word-break:break-word; }
+  .mb small { display:block; font-size:.75rem; color:var(--muted); }
+  .chips span { display:inline-block; margin:3px 8px 3px 0; }
+  .chips b { font-size:1.15rem; }
+  .emo { font-size:1.9rem; letter-spacing:.35rem; }
+  /* 報告 */
+  .headline { font-size:1.65rem; line-height:1.4; margin:8px 0 14px; }
+  .persona { display:flex; gap:12px; align-items:center; }
+  .persona .av { width:44px; height:44px; border-radius:50%; background:var(--accent); display:grid; place-items:center; font-size:1.4rem; flex:none; }
+  .rpt p { margin:14px 0; }
+  .qrow { margin:12px 0; }
+  .qrow small { display:block; color:var(--muted); font-size:.78rem; margin:0 0 2px 4px; }
+  .qb { background:var(--mine); color:var(--mine-fg); display:inline-block; max-width:92%; padding:8px 14px; border-radius:16px 16px 16px 4px; white-space:pre-wrap; word-break:break-word; }
+  .qb::after { content:" ✓✓"; font-size:.7rem; color:#2e90e8; margin-left:6px; }
+  .pcard { margin:10px 0; }
+  .pcard .t { font-weight:700; }
 </style>
 </head>
 <body>
 <main>
   <h1>LINE 對話報告</h1>
-  <p class="sub">上傳 LINE 匯出的 .txt,Claude 讀完後幫你寫一份有趣的對話報告。</p>
+  <p class="sub">上傳 LINE 匯出的 .txt,先看統計,再讓 Claude 讀完寫成一篇有梗的報告。</p>
 
   <section class="card" id="setup">
     <label for="file">1. LINE 對話檔 (.txt)</label>
     <input id="file" type="file" accept=".txt,text/plain">
     <p class="note">LINE 聊天室右上角 ≡ → 其他設定 → 傳送聊天記錄 → 以文字檔傳送。</p>
 
+    <div id="members" hidden>
+      <label>2. 整理名字 (把暱稱和 emoji 換成簡單的名字;兩格填一樣的名字就會合併成同一人)</label>
+      <div id="mlist"></div>
+    </div>
+
     <div class="row">
       <div>
-        <label for="kind">2. 對話類型</label>
+        <label for="kind">對話類型</label>
         <select id="kind">
           <option>朋友群組</option><option>好友兩人</option><option>情侶/曖昧</option>
           <option>家族群組</option><option>公司/社團群組</option>
@@ -64,6 +108,13 @@
 
     <div class="row">
       <div>
+        <label for="lang">報告語言</label>
+        <select id="lang">
+          <option value="zh">繁體中文 (台灣)</option><option value="en">English</option>
+          <option value="ja">日本語</option><option value="ko">한국어</option>
+        </select>
+      </div>
+      <div>
         <label for="model">模型</label>
         <select id="model">
           <option value="claude-opus-5-5">Claude Opus 5.5 (品質最好)</option>
@@ -71,13 +122,12 @@
           <option value="claude-haiku-5-5">Claude Haiku 5.5 (最便宜)</option>
         </select>
       </div>
-      <div>
-        <label for="limit">只分析最近 N 則 (0 = 全部)</label>
-        <input id="limit" type="number" min="0" value="0">
-      </div>
     </div>
 
-    <label for="key">3. Anthropic API Key</label>
+    <label for="limit">報告只讀最近 N 則 (統計仍用全部;0 = 全部)</label>
+    <input id="limit" type="number" min="0" value="3000">
+
+    <label for="key">Anthropic API Key</label>
     <input id="key" type="password" placeholder="sk-ant-..." autocomplete="off">
     <label class="note"><input id="remember" type="checkbox"> 記在這個瀏覽器 (localStorage)</label>
     <p class="note warn">Key 只存在你的瀏覽器,請求直接送到 api.anthropic.com。請用自己的 key,不要把含 key 的頁面公開。對話內容會送給 Anthropic 處理。</p>
@@ -86,6 +136,7 @@
     <div id="log"></div>
   </section>
 
+  <div id="story"></div>
   <div id="report"></div>
 </main>
 
@@ -112,7 +163,7 @@ function classify(text) {
 
 function parseLine(raw) {
   // 移除 LINE 匯出夾帶的雙向文字隔離字元 (U+2066-2069)
-  const lines = raw.replace(/\r/g, "").replace(/[\u2066-\u2069]/g, "").split("\n");
+  const lines = raw.replace(/\r/g, "").replace(/[⁦-⁩]/g, "").split("\n");
   const dateRe = /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?!\d)/;
   const timeRe = /^(上午|下午|AM|PM)?\s*(\d{1,2}):(\d{2})$/i;
   const msgs = [];
@@ -155,12 +206,29 @@ function parseLine(raw) {
   return msgs;
 }
 
+function groupTitle(raw) {
+  const m = raw.match(/^\s*\[LINE\]\s*(.+?)的聊天記錄/m);
+  return m ? m[1].replace(/^與/, "") : "";
+}
+
+// 預設顯示名:去掉 emoji 與裝飾符號;清完是空的就保留原名
+function cleanName(n) {
+  const c = n.replace(/\p{Extended_Pictographic}|\p{So}|\p{Script=Georgian}|[️‍]/gu, "").replace(/\s+/g, " ").trim();
+  return c || n.trim();
+}
+function applyNames(msgs, map) {
+  return msgs.map((m) => ({ ...m, name: map.get(m.name) ?? m.name }));
+}
+
 const pad = (n) => String(n).padStart(2, "0");
 const fmtDate = (ts) => { const d = new Date(ts); return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`; };
 const fmtTime = (ts) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const dayNum = (ts) => { const d = new Date(ts); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5); };
+const median = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+const EMOJI_RE = /\p{Extended_Pictographic}/gu;
+const LAUGH = ["😂", "🤣", "😆", "😅", "😹", "😁", "😄", "🤭"];
 
-function median(a) { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; }
-
+// 給 prompt 用的每人數字 (範圍 = 實際送給模型讀的訊息)
 function computeStats(msgs) {
   const GAP = 6 * 3600e3;
   const people = new Map();
@@ -169,7 +237,6 @@ function computeStats(msgs) {
       lateNight: 0, openers: 0, questions: 0, laughs: 0, emojiTokens: 0, replies: [], emojis: new Map(), hours: Array(24).fill(0) });
     return people.get(n);
   };
-  const emojiRe = /\p{Extended_Pictographic}/gu;
   const perDay = new Map();
   let prev = null, longestSilence = { ms: 0, from: 0 };
 
@@ -187,8 +254,8 @@ function computeStats(msgs) {
       p.textChars += m.text.length;
       if (/[?？]/.test(m.text)) p.questions++;
       if (/哈|XD|笑死|www|lol/i.test(m.text)) p.laughs++;
-      p.emojiTokens += (m.text.match(/\(emoji\)/g) || []).length; // 匯出時 emoji 會被換成 "(emoji)"
-      for (const e of m.text.match(emojiRe) || []) p.emojis.set(e, (p.emojis.get(e) || 0) + 1);
+      p.emojiTokens += (m.text.match(/\(emoji\)/g) || []).length; // LINE 自家表情符號匯出時會變成 "(emoji)"
+      for (const e of m.text.match(EMOJI_RE) || []) p.emojis.set(e, (p.emojis.get(e) || 0) + 1);
     }
     const day = fmtDate(m.ts);
     perDay.set(day, (perDay.get(day) || 0) + 1);
@@ -202,7 +269,8 @@ function computeStats(msgs) {
   }
 
   const list = [...people.values()].sort((a, b) => b.messages - a.messages).map((p) => ({
-    name: p.name, messages: p.messages, avgChars: p.messages ? +(p.textChars / p.messages).toFixed(1) : 0,
+    name: p.name, messages: p.messages, pct: msgs.length ? Math.round((p.messages / msgs.length) * 100) : 0,
+    avgChars: p.messages ? +(p.textChars / p.messages).toFixed(1) : 0,
     photos: p.photos, stickers: p.stickers, voice: p.voice, unsent: p.unsent,
     emojiCount: p.emojiTokens, lateNightMessages: p.lateNight, conversationOpeners: p.openers, questions: p.questions, laughs: p.laughs,
     medianReplyMinutes: p.replies.length ? +median(p.replies).toFixed(1) : null,
@@ -217,9 +285,135 @@ function computeStats(msgs) {
     activeDays: perDay.size,
     busiestDay: busiest ? { date: busiest[0], messages: busiest[1] } : null,
     longestSilenceDays: +(longestSilence.ms / 86400e3).toFixed(1),
-    longestSilenceStart: longestSilence.ms ? fmtDate(longestSilence.from) : null,
     people: list,
   };
+}
+
+// 給畫面用的「故事式」統計 (全部訊息,純程式計算)
+function computeStory(msgs) {
+  const people = new Map();
+  const P = (n) => {
+    let p = people.get(n);
+    if (!p) people.set(n, p = { name: n, messages: 0, stickers: 0, unsent: 0, openers: 0, longest: null, laugh: new Map() });
+    return p;
+  };
+  const calendar = new Map(), hours = Array(24).fill(0), emojiAll = new Map(), days = [];
+  let lastKey = null;
+
+  for (const m of msgs) {
+    const p = P(m.name); p.messages++;
+    const key = fmtDate(m.ts);
+    calendar.set(key, (calendar.get(key) || 0) + 1);
+    if (key !== lastKey) { p.openers++; lastKey = key; days.push(dayNum(m.ts)); }
+    hours[new Date(m.ts).getHours()]++;
+    if (m.kind === "sticker") p.stickers++;
+    else if (m.kind === "unsent") p.unsent++;
+    else if (m.kind === "text") {
+      const len = [...m.text].length;
+      if (!p.longest || len > p.longest.len) p.longest = { len, ts: m.ts, text: m.text };
+      for (const e of m.text.match(EMOJI_RE) || []) {
+        emojiAll.set(e, (emojiAll.get(e) || 0) + 1);
+        if (LAUGH.includes(e)) p.laugh.set(e, (p.laugh.get(e) || 0) + 1);
+      }
+    }
+  }
+
+  const total = msgs.length;
+  const sorted = [...people.values()].sort((a, b) => b.messages - a.messages);
+  const top = sorted.slice(0, 5);
+  const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0);
+
+  const share = top.map((p) => ({ name: p.name, count: p.messages, pct: pct(p.messages, total) }));
+  const otherCount = total - top.reduce((s, p) => s + p.messages, 0);
+  const openers = top.map((p) => ({ name: p.name, pct: pct(p.openers, days.length) }));
+  const totalStickers = sorted.reduce((s, p) => s + p.stickers, 0);
+  const stickers = { total: totalStickers,
+    list: [...sorted].sort((a, b) => b.stickers - a.stickers).slice(0, 5).filter((p) => p.stickers > 0)
+      .map((p) => ({ name: p.name, pct: pct(p.stickers, totalStickers) })) };
+  const unsent = [...sorted].sort((a, b) => b.unsent - a.unsent).filter((p) => p.unsent > 0).slice(0, 6)
+    .map((p) => ({ name: p.name, count: p.unsent }));
+
+  let streak = 0, bestStreak = 0, bestGap = 0;
+  for (let i = 0; i < days.length; i++) {
+    streak = i && days[i] - days[i - 1] === 1 ? streak + 1 : 1;
+    bestStreak = Math.max(bestStreak, streak);
+    if (i) bestGap = Math.max(bestGap, days[i] - days[i - 1] - 1);
+  }
+  const busiest = [...calendar.entries()].sort((a, b) => b[1] - a[1])[0];
+  const night = hours.slice(22).reduce((a, b) => a + b, 0) + hours.slice(0, 5).reduce((a, b) => a + b, 0);
+
+  const longest = [...sorted].filter((p) => p.longest).sort((a, b) => b.longest.len - a.longest.len).slice(0, 2)
+    .map((p) => ({ name: p.name, ...p.longest, date: fmtDate(p.longest.ts) }));
+
+  const edge = (arr) => arr.filter((m) => m.kind === "text").slice(0, 5);
+  const firstKey = total ? fmtDate(msgs[0].ts) : null, lastK = total ? fmtDate(msgs[total - 1].ts) : null;
+  const firstDay = { date: firstKey, msgs: edge(msgs.filter((m) => fmtDate(m.ts) === firstKey).slice(0, 40)) };
+  const lastDay = { date: lastK, msgs: edge(msgs.filter((m) => fmtDate(m.ts) === lastK).reverse().slice(0, 40)).reverse() };
+
+  // 笑法:最常用的笑臉 emoji、每人用量、單則最高連打
+  const laughTotals = new Map();
+  for (const p of sorted) for (const [e, c] of p.laugh) laughTotals.set(e, (laughTotals.get(e) || 0) + c);
+  const best = [...laughTotals.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  let laughRecord = null;
+  if (best) {
+    const re = new RegExp(`(?:${best})+`, "gu");
+    for (const m of msgs) {
+      if (m.kind !== "text" || !m.text.includes(best)) continue;
+      for (const mt of m.text.matchAll(re)) {
+        const run = [...mt[0]].length;
+        if (!laughRecord || run > laughRecord.run) laughRecord = { run, name: m.name };
+      }
+    }
+  }
+  const laugh = best ? { emoji: best, record: laughRecord,
+    list: [...sorted].map((p) => ({ name: p.name, count: p.laugh.get(best) || 0 })).filter((x) => x.count > 0)
+      .sort((a, b) => b.count - a.count).slice(0, 4) } : null;
+
+  return {
+    total, share, otherPct: pct(otherCount, total), openers, stickers, unsent,
+    calendar, busiest: busiest ? { date: busiest[0], count: busiest[1] } : null,
+    streakDays: bestStreak, longestGapDays: bestGap, hours, peakHour: hours.indexOf(Math.max(...hours)),
+    nightPct: pct(night, total), longest, firstDay, lastDay, laugh,
+    topEmojis: [...emojiAll.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([e]) => e),
+    order: sorted.map((p) => p.name),
+  };
+}
+
+const STOP = new Set(("什麼 這個 那個 可以 不是 沒有 我們 你們 他們 就是 然後 所以 因為 但是 如果 還是 已經 真的 一個 自己 知道 覺得 現在 今天 明天 昨天 " +
+  "時候 一下 不會 不要 應該 好像 而且 其實 感覺 而已 這樣 那樣 這麼 那麼 怎麼 為什麼 哪裡 一樣 還有 或是 或者 以及 可能 好了 對啊 對阿 是啊 不過 只是 有點 " +
+  "一直 都是 都有 也是 也有 比較 非常 剛剛 等等 之後 之前 一起 看看 出來 起來 過來 下去 上去 回來 這邊 那邊 大家 有人 沒事 不行 好的 好啊 好阿 這些 那些 還要 " +
+  "http https www com").split(/\s+/));
+
+// 最常用字詞與口頭禪 (口頭禪 = 短訊息裡、跨很多天都會出現的詞;啟發式,不是語言學上的定義)
+function wordStats(msgs, names) {
+  if (typeof Intl === "undefined" || !Intl.Segmenter) return { topWords: [], catchphrases: [] };
+  const seg = new Intl.Segmenter("zh-TW", { granularity: "word" });
+  const skip = new Set();
+  for (const n of names) { skip.add(n.toLowerCase()); for (const p of n.toLowerCase().split(/[^\p{L}\p{N}]+/u)) if (p) skip.add(p); }
+  const stat = new Map(); const days = new Set();
+  for (const m of msgs) {
+    if (m.kind !== "text") continue;
+    const day = fmtDate(m.ts); days.add(day);
+    const t = m.text.replace(/https?:\/\/\S+/g, " ").replace(/\(emoji\)/g, " ").replace(/\[[^\]]*\]/g, " ");
+    const short = t.length <= 10;
+    for (const s of seg.segment(t)) {
+      if (!s.isWordLike) continue;
+      const w = s.segment.toLowerCase();
+      if (w.length < 2 || /^\d+$/.test(w) || STOP.has(w) || skip.has(w)) continue;
+      let e = stat.get(w);
+      if (!e) stat.set(w, e = { n: 0, short: 0, dayCount: 0, last: "" });
+      e.n++; if (short) e.short++;
+      if (e.last !== day) { e.dayCount++; e.last = day; }
+    }
+  }
+  const nDays = Math.max(1, days.size);
+  const minN = Math.max(3, Math.floor(msgs.length / 3000));
+  const all = [...stat.entries()].map(([word, e]) => ({ word, count: e.n, short: e.short / e.n, spread: e.dayCount / nDays }));
+  const catchphrases = all.filter((x) => x.count >= minN && x.short >= 0.6 && x.spread >= 0.1)
+    .sort((a, b) => b.count * b.spread * b.short - a.count * a.spread * a.short).slice(0, 4);
+  const cp = new Set(catchphrases.map((x) => x.word));
+  const topWords = all.filter((x) => !cp.has(x.word)).sort((a, b) => b.count - a.count).slice(0, 5);
+  return { topWords, catchphrases };
 }
 
 function toTranscript(msgs) {
@@ -245,10 +439,15 @@ function chunkTranscript(text, maxChars) {
 
 const squash = (s) => s.replace(/\s+/g, "");
 // 只保留能在原文逐字找到的引用,擋掉模型編造的名場面
-function verifyQuotes(highlights, msgs) {
+function verifyBlocks(blocks, msgs) {
   const hay = squash(msgs.filter((m) => m.kind === "text").map((m) => m.text).join("\n"));
-  const kept = highlights.filter((h) => { const q = squash(h.quote || ""); return q.length > 1 && hay.includes(q); });
-  return { kept, dropped: highlights.length - kept.length };
+  const kept = []; let dropped = 0;
+  for (const b of blocks) {
+    if (b.kind !== "quote") { kept.push(b); continue; }
+    const q = squash(b.text || "");
+    if (q.length > 1 && hay.includes(q)) kept.push(b); else dropped++;
+  }
+  return { kept, dropped };
 }
 // </parser>
 
@@ -256,58 +455,63 @@ function verifyQuotes(highlights, msgs) {
 const PRICE = { "claude-opus-5-5": [4, 20], "claude-sonnet-5-5": [2, 10], "claude-haiku-5-5": [0.1, 0.5] };
 const DIGEST_MODEL = "claude-haiku-5-5";
 const CHUNK_CHARS = 60000;
-const DIRECT_LIMIT = 90000; // 超過這個字數才先分段摘要
+const DIRECT_LIMIT = 150000; // 超過這個字數才先分段摘要
 
+const PERSONA = { name: "小觀", quirk: "你有個莫名其妙的癖好:超愛滷肉飯,整篇最多不經意提到兩次" };
 const TONES = {
   "毒舌": "口吻:犀利、幽默、愛吐槽,像講話很直的好朋友。損的是行為模式,不是人格;好話跟壞話一樣直說。",
   "中立": "口吻:冷靜、觀察式、有點冷幽默。",
   "溫柔": "口吻:溫暖、鼓勵、看見每個人的優點,但仍誠實。",
 };
+const LANGS = {
+  zh: "用台灣繁體中文寫作,口語自然。",
+  en: "Write in casual, natural English. Keep quotes verbatim in their original language.",
+  ja: "くだけた自然な日本語で書く。引用は原文のまま。",
+  ko: "자연스러운 구어체 한국어로 쓴다. 인용문은 원문 그대로 둔다.",
+};
 
-function systemPrompt(kind, tone) {
-  return `你是一位專門閱讀 LINE 聊天記錄、寫成有趣報告的「對話觀察員」。用台灣繁體中文寫作。
-
-對話類型:${kind}
+function systemPrompt({ kind, tone, lang, title }) {
+  return `你是「${PERSONA.name}」,一個讀完 LINE 聊天記錄後,把它寫成有趣報告的 AI 角色。${PERSONA.quirk}。
+${LANGS[lang]}
+對話類型:${kind}${title ? `\n群組/對話名稱:${title}` : ""}
 ${TONES[tone]}
+
+寫作風格:
+- 用第一人稱「我」直接對這群人說話,像在群組裡講話,口語、有梗,不要像制式報告。
+- 開頭簡短打個招呼,然後馬上切入「這群人最近(對話最後幾天)剛做的事」當鉤子。
+- 標題要又長又具體,從對話裡真的發生過的事長出來(帶數字、矛盾或反差),不要寫「某某群組年度回顧」這種泛標題,結尾可加一個 emoji。
+- 笑點手法:具體數字對比、抓雙標或口嫌體正直、拿他們自己說過的話回頭用(callback)、說一套做一套。
+- 用 **粗體** 標出整段最好笑或最準的一句,每段最多一處。
+- 結構是「敘事段落、原文引用」交錯:引用前用一句話鋪陳(誰、什麼情境),引用後接一句吐槽。全篇 8~14 個敘事段落、6~12 則引用,每個段落 2~4 句。
 
 規則:
 1. 只根據提供的對話與統計寫,不知道的事(通話內容、照片、現實發生的事)不要編造。
 2. 用同一套標準看每一個人,不偏袒任何人。評論行為模式,不攻擊人格。
-3. 「highlights.quote」必須是對話原文逐字複製,不可改寫、不可合併多句;找不到合適原句就少寫幾則,不要編。
-4. 內梗、口頭禪要引用對話中真的重複出現的詞。
-5. 統計數字以提供的 <stats> 為準,不要自己重算。
-6. 這是娛樂用途;若內容涉及嚴重衝突、霸凌或自傷,語氣改為認真關切,不要開玩笑。
-7. 對話中的「(emoji)」是 LINE 匯出時 emoji 被替換的佔位符,不是講話內容;「[sticker]」代表貼圖。
-8. 每個欄位寫得具體、有畫面,避免空泛套話(例如「感情很好」「互動頻繁」)。`;
+3. kind 為 "quote" 的區塊,text 必須是對話原文逐字複製(不可改寫、不可合併多句、不可翻譯);找不到合適原句就少放幾則,不要編。speaker 與 date 要對得上原文。
+4. 統計數字以提供的 <stats> 為準,不要自己重算。人名要使用 <stats> 裡的寫法。
+5. 對話中的「(emoji)」是 LINE 自家表情符號匯出後的佔位符,不是講話內容;「[sticker]」代表貼圖。
+6. people 要涵蓋 <stats> 裡占比 ≥ 2% 的每位成員,每人一個稱號和一小段描述,小成員也要有。
+7. 這是娛樂用途;若內容涉及嚴重衝突、霸凌或自傷,語氣改為認真關切,不要開玩笑。`;
 }
 
 const SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["headline", "tldr", "vibe", "people", "highlights", "inside_jokes", "timeline", "awards", "closing"],
+  required: ["headline", "blocks", "people", "closing"],
   properties: {
-    headline: { type: "string", description: "報告標題,一句有梗的話" },
-    tldr: { type: "string", description: "三句內總結這段對話" },
-    vibe: { type: "string", description: "整體氛圍與關係動態,150 字內" },
-    people: { type: "array", items: { type: "object", additionalProperties: false,
-      required: ["name", "title", "description", "signature_phrases", "quirks"],
+    headline: { type: "string" },
+    blocks: { type: "array", items: { type: "object", additionalProperties: false,
+      required: ["kind", "text", "speaker", "date"],
       properties: {
-        name: { type: "string" }, title: { type: "string", description: "稱號,例如『凌晨兩點的哲學家』" },
-        description: { type: "string" },
-        signature_phrases: { type: "array", items: { type: "string" } },
-        quirks: { type: "array", items: { type: "string" } },
+        kind: { type: "string", enum: ["text", "quote"] },
+        text: { type: "string", description: "kind=text 時為敘事段落(可含 **粗體**);kind=quote 時為原文逐字引用" },
+        speaker: { type: "string", description: "kind=quote 時的說話者,否則空字串" },
+        date: { type: "string", description: "kind=quote 時的日期 YYYY/MM/DD,否則空字串" },
       } } },
-    highlights: { type: "array", items: { type: "object", additionalProperties: false,
-      required: ["quote", "speaker", "date", "comment"],
-      properties: { quote: { type: "string" }, speaker: { type: "string" }, date: { type: "string" }, comment: { type: "string" } } } },
-    inside_jokes: { type: "array", items: { type: "object", additionalProperties: false,
-      required: ["term", "meaning"], properties: { term: { type: "string" }, meaning: { type: "string" } } } },
-    timeline: { type: "array", items: { type: "object", additionalProperties: false,
-      required: ["when", "event"], properties: { when: { type: "string" }, event: { type: "string" } } } },
-    awards: { type: "array", items: { type: "object", additionalProperties: false,
-      required: ["award", "winner", "reason"],
-      properties: { award: { type: "string" }, winner: { type: "string" }, reason: { type: "string" } } } },
-    closing: { type: "string", description: "結語,一兩句" },
+    people: { type: "array", items: { type: "object", additionalProperties: false,
+      required: ["name", "title", "description"],
+      properties: { name: { type: "string" }, title: { type: "string" }, description: { type: "string" } } } },
+    closing: { type: "string" },
   },
 };
 
@@ -319,20 +523,31 @@ const el = (tag, props = {}, ...kids) => {
   for (const k of kids.flat()) if (k != null) n.append(k.nodeType ? k : document.createTextNode(String(k)));
   return n;
 };
+// replaceChildren 不會展開陣列也不會略過 null,所以統一走這裡
+const mount = (node, ...kids) => node.replaceChildren(...kids.flat(Infinity).filter((k) => k != null));
 const log = (s) => { $("log").textContent = s; };
+const PAL = ["#ff8fd8", "#ffc700", "#7fdcb0", "#bcb0fb", "#ffa987", "#8ec5ff", "#c7c7c7"];
 
-let parsed = null;
+let parsed = null, title = "";
 try { const k = localStorage.getItem("lcr_key"); if (k) { $("key").value = k; $("remember").checked = true; } } catch {}
 
 $("file").addEventListener("change", async (e) => {
   const f = e.target.files[0];
-  parsed = null; $("go").disabled = true;
+  parsed = null; $("go").disabled = true; $("members").hidden = true;
   if (!f) return;
-  const msgs = parseLine(await f.text());
+  const text = await f.text();
+  const msgs = parseLine(text);
   if (msgs.length < 20) { log("解析不到足夠的訊息。請確認是 LINE 匯出的 .txt (含「時間<Tab>名字<Tab>內容」格式)。"); return; }
-  parsed = msgs;
-  const names = new Set(msgs.map((m) => m.name));
-  log(`讀到 ${msgs.length} 則訊息、${names.size} 位發言者,${fmtDate(msgs[0].ts)} ~ ${fmtDate(msgs[msgs.length - 1].ts)}`);
+  parsed = msgs; title = groupTitle(text);
+
+  const counts = new Map();
+  for (const m of msgs) counts.set(m.name, (counts.get(m.name) || 0) + 1);
+  const rows = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  $("mlist").replaceChildren(...rows.map(([name, n]) => el("div", { class: "rb", style: "grid-template-columns:minmax(100px,1fr) 1.2fr" },
+    el("span", { class: "note" }, `${name} · ${n} 則 (${Math.round((n / msgs.length) * 100)}%)`),
+    el("input", { type: "text", value: cleanName(name), "data-orig": name }))));
+  $("members").hidden = false;
+  log(`讀到 ${msgs.length} 則訊息、${counts.size} 位發言者,${fmtDate(msgs[0].ts)} ~ ${fmtDate(msgs[msgs.length - 1].ts)}${title ? `\n對話名稱:${title}` : ""}`);
   $("go").disabled = false;
 });
 
@@ -343,19 +558,30 @@ async function run() {
   if (!key) { log("請輸入 API key。"); return; }
   try { $("remember").checked ? localStorage.setItem("lcr_key", key) : localStorage.removeItem("lcr_key"); } catch {}
 
+  const nameMap = new Map();
+  document.querySelectorAll("#mlist input").forEach((i) => nameMap.set(i.dataset.orig, i.value.trim() || i.dataset.orig));
+  const all = applyNames(parsed, nameMap);
+
+  // 先在本機算統計並顯示 (免費),等 Claude 寫報告時使用者有東西看
+  const story = computeStory(all);
+  renderStory(story, wordStats(all, new Set(all.map((m) => m.name))));
+  $("report").replaceChildren();
+
   const limit = Math.max(0, parseInt($("limit").value, 10) || 0);
-  const msgs = limit && parsed.length > limit ? parsed.slice(-limit) : parsed;
-  const model = $("model").value, kind = $("kind").value, tone = $("tone").value;
+  const msgs = limit && all.length > limit ? all.slice(-limit) : all;
+  const model = $("model").value, kind = $("kind").value, tone = $("tone").value, lang = $("lang").value;
   const stats = computeStats(msgs);
   const transcript = toTranscript(msgs);
   const needDigest = transcript.length > DIRECT_LIMIT;
 
   const [pin, pout] = PRICE[model];
   const finalIn = needDigest ? 40000 : transcript.length; // 中文約 1 字 ≈ 1 token (保守估計)
-  const est = (transcript.length * PRICE[DIGEST_MODEL][0] * (needDigest ? 1 : 0) + finalIn * pin + 8000 * pout) / 1e6;
-  if (!confirm(`共 ${msgs.length} 則 / 約 ${transcript.length.toLocaleString()} 字。\n預估費用約 US$${est.toFixed(2)} (粗估)。\n確定要送出分析嗎?對話內容會傳給 Anthropic。`)) return;
+  const est = ((needDigest ? transcript.length * PRICE[DIGEST_MODEL][0] : 0) + finalIn * pin + 10000 * pout) / 1e6;
+  if (!confirm(`報告會讀最近 ${msgs.length} 則 / 約 ${transcript.length.toLocaleString()} 字。\n預估費用約 US$${est.toFixed(2)} (粗估)。\n確定要送出嗎?對話內容會傳給 Anthropic。`)) {
+    log("已取消 (統計卡片是在本機算的,沒有送出任何資料)。"); return;
+  }
 
-  $("go").disabled = true; $("report").replaceChildren();
+  $("go").disabled = true;
   const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
 
   try {
@@ -369,7 +595,7 @@ async function run() {
           const i = next++;
           const r = await client.messages.create({
             model: DIGEST_MODEL, max_tokens: 4000, output_config: { effort: "low" },
-            system: "你是聊天記錄整理員,用台灣繁體中文。只根據提供內容整理,不要編造。",
+            system: "你是聊天記錄整理員,用台灣繁體中文。只根據提供內容整理,不要編造。人名照原文寫。",
             messages: [{ role: "user", content:
 `下面是 LINE 對話的第 ${i + 1}/${chunks.length} 段。請條列整理(總共 1500 字內):
 1. 發生的重要事件(依時間,附日期)
@@ -391,80 +617,140 @@ ${chunks[i]}
       material = digests.map((d, i) => `### 第 ${i + 1} 段摘要\n${d}`).join("\n\n");
     } else material = transcript;
 
-    log("Claude 正在寫報告…");
+    // 摘要模式下,最後兩天的原文另外附上,讓開頭鉤子有最新鮮的素材
+    const tail = needDigest ? `\n\n<recent_chat>\n${toTranscript(msgs.slice(-150))}\n</recent_chat>` : "";
+    const tag = needDigest ? "digest" : "chat";
+
+    log("寫報告中…");
     const stream = client.messages.stream({
       model, max_tokens: 32000,
       output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA } },
-      system: systemPrompt(kind, tone),
+      system: systemPrompt({ kind, tone, lang, title }),
       messages: [{ role: "user", content:
 `請根據以下資料寫報告。
 
 <stats>
-${JSON.stringify(stats.people.slice(0, 12))}
+${JSON.stringify(stats.people.slice(0, 15))}
 </stats>
 
 <overview>
-${JSON.stringify({ ...stats, people: undefined })}
+${JSON.stringify({ ...stats, people: undefined, fullChatMessages: all.length, fullChatFrom: fmtDate(all[0].ts), fullChatTo: fmtDate(all[all.length - 1].ts) })}
 </overview>
 
-<${needDigest ? "digest" : "chat"}>
+<${tag}>
 ${material}
-</${needDigest ? "digest" : "chat"}>` }],
+</${tag}>${tail}` }],
     });
     let chars = 0;
-    stream.on("text", (t) => { chars += t.length; log(`Claude 正在寫報告… ${chars} 字`); });
+    stream.on("text", (t) => { chars += t.length; log(`寫報告中… ${chars} 字`); });
     const final = await stream.finalMessage();
 
     if (final.stop_reason === "refusal") throw new Error("模型拒絕處理這段內容。");
     if (final.stop_reason === "max_tokens") throw new Error("報告太長被截斷,請減少分析範圍再試。");
-    const text = final.content.filter((b) => b.type === "text").map((b) => b.text).join("");
-    const report = JSON.parse(text);
-    const v = verifyQuotes(report.highlights, msgs);
-    report.highlights = v.kept;
-    render(report, stats, v.dropped, final.usage);
+    const report = JSON.parse(final.content.filter((b) => b.type === "text").map((b) => b.text).join(""));
+    const v = verifyBlocks(report.blocks, all);
+    report.blocks = v.kept;
+    renderReport(report, stats, v.dropped, final.usage, msgs.length < all.length);
     log("完成。");
   } catch (e) {
     log(e instanceof Anthropic.APIError ? `API 錯誤 (${e.status}):${e.message}` : `錯誤:${e.message}`);
   } finally { $("go").disabled = false; }
 }
 
-function render(r, stats, dropped, usage) {
-  const root = $("report");
-  root.replaceChildren(
-    el("h1", {}, r.headline),
-    el("p", { class: "sub" }, `${stats.from} ~ ${stats.to} · ${stats.totalMessages} 則 · ${stats.activeDays} 天有聊天`),
-    el("div", { class: "card" }, el("div", { class: "big" }, r.tldr), el("p", {}, r.vibe)),
+// ---------- 統計卡片 ----------
+const tint = (cls, heading, ...kids) => el("section", { class: `card tint ${cls}` }, heading ? el("h3", {}, heading) : null, ...kids);
+const fill = (pct, color) => el("div", { class: "bar" }, el("i", { style: `width:${Math.max(1, pct)}%;background:${color}` }));
+const rowBar = (label, pct, color, right) => el("div", { class: "rb" }, el("span", {}, label), fill(pct, color), el("span", { class: "rr" }, right ?? `${pct}%`));
+const bubble = (m) => el("div", { class: "mb" }, el("small", {}, m.name), m.text);
 
+function renderStory(s, w) {
+  const color = (name) => PAL[Math.max(0, s.order.indexOf(name)) % (PAL.length - 1)];
+  const parts = [];
+  const unit = (n, u) => [String(n), el("span", { class: "unit" }, u)];
+
+  // 日曆
+  const keys = [...s.calendar.keys()].sort();
+  const max = Math.max(...s.calendar.values());
+  const [y0, m0] = keys[0].split("/").map(Number), [y1, m1] = keys[keys.length - 1].split("/").map(Number);
+  const cal = el("div", { class: "calgrid" });
+  for (let y = y0, m = m0; y < y1 || (y === y1 && m <= m1); m === 12 ? (y++, m = 1) : m++) {
+    cal.append(el("span", {}, `${y}/${pad(m)}`));
+    const dim = new Date(y, m, 0).getDate();
+    for (let d = 1; d <= 31; d++) {
+      const c = s.calendar.get(`${y}/${pad(m)}/${pad(d)}`) || 0;
+      cal.append(el("span", { class: "c", title: d <= dim ? `${y}/${pad(m)}/${pad(d)}:${c} 則` : "",
+        style: d > dim ? "visibility:hidden" : `background:rgba(255,200,80,${c ? 0.18 + 0.82 * Math.sqrt(c / max) : 0.07})` }));
+    }
+  }
+  parts.push(el("h2", {}, "你們的對話,一天一天看"), el("section", { class: "card cal" }, cal));
+
+  // 誰話多、誰先開口
+  let acc = 0; const stops = s.share.map((p) => { const a = acc; acc += p.pct; return `${color(p.name)} ${a}% ${acc}%`; });
+  stops.push(`${PAL[PAL.length - 1]} ${acc}% 100%`);
+  parts.push(el("h2", {}, "誰話多,誰先開口"),
+    tint("t5", "誰講比較多", el("div", { class: "donutwrap" },
+      el("div", { class: "donut", style: `background:conic-gradient(${stops.join(",")})` }),
+      el("div", { class: "legend" }, s.share.map((p, i) => el("div", {}, el("span", {}, el("i", { class: "dot", style: `background:${color(p.name)}` }), `#${i + 1} ${p.name}`), `${p.pct}%`)),
+        s.otherPct ? el("div", {}, el("span", {}, el("i", { class: "dot", style: `background:${PAL[PAL.length - 1]}` }), "其他"), `${s.otherPct}%`) : null))),
+    tint("t1", "每天誰先開口", s.openers.map((p) => rowBar(p.name, p.pct, color(p.name)))));
+
+  // 收回
+  if (s.unsent.length) {
+    const mx = s.unsent[0].count;
+    parts.push(el("h2", {}, "LINE 都記得的事"), tint("t2", "收回的訊息", s.unsent.map((p) => rowBar(p.name, Math.round((p.count / mx) * 100), color(p.name), p.count)), el("p", { class: "note" }, "收回了什麼,只有本人知道。")));
+  }
+
+  // 節奏
+  const hmax = Math.max(...s.hours);
+  parts.push(el("h2", {}, "你們的節奏"),
+    s.busiest ? tint("t2", "最熱鬧的一天", el("div", { class: "num" }, unit(s.busiest.count.toLocaleString(), `則訊息 (${s.busiest.date})`))) : null,
+    el("div", { class: "row" },
+      tint("t3", "最長連續聊天", el("div", { class: "num" }, unit(s.streakDays, "天"))),
+      tint("t1", "最久沒聊的一段", el("div", { class: "num" }, unit(s.longestGapDays, "天沒聊")))),
+    tint("t4", "什麼時段最常聊",
+      el("div", { class: "hours" }, s.hours.map((n, h) => el("i", { class: h >= 22 || h < 5 ? "night" : "", style: `height:${(n / hmax) * 100}%`, title: `${h} 點:${n} 則` }))),
+      el("div", { class: "hlab" }, el("span", {}, "0 點"), el("span", {}, "6 點"), el("span", {}, "12 點"), el("span", {}, "18 點"), el("span", {}, "23 點")),
+      el("p", { class: "note" }, `晚上 10 點到清晨 5 點占 ${s.nightPct}%,最常聊的是 ${s.peakHour} 點。`)));
+
+  // 最長訊息、開頭、最新
+  parts.push(el("h2", {}, "最長的一則訊息"),
+    s.longest.map((l) => tint("t6", l.name, el("div", { class: "num" }, unit(l.len, `個字 · ${l.date}`)), el("div", { class: "msgs" }, bubble({ name: l.name, text: l.text })))),
+    el("h2", {}, "一切從這裡開始"), tint("t6", s.firstDay.date, el("div", { class: "msgs" }, s.firstDay.msgs.map(bubble))),
+    el("h2", {}, "到目前為止,就停在這裡"), tint("t6", s.lastDay.date, el("div", { class: "msgs" }, s.lastDay.msgs.map(bubble))));
+
+  // 用字
+  parts.push(el("h2", {}, "你們的用字"));
+  if (s.laugh) parts.push(tint("t1", "你們的笑法", s.laugh.list.map((p) => rowBar(p.name, Math.round((p.count / s.laugh.list[0].count) * 100), color(p.name), `${s.laugh.emoji}×${p.count}`)),
+    s.laugh.record && s.laugh.record.run > 1 ? el("p", { class: "note" }, `最高紀錄:一口氣打了 ${s.laugh.record.run} 個 ${s.laugh.emoji} · ${s.laugh.record.name}`) : null));
+  if (w.catchphrases.length) parts.push(tint("t2", "口頭禪", el("div", { class: "chips" }, w.catchphrases.map((x) => el("span", {}, el("b", {}, x.word), ` ${x.count.toLocaleString()} 次`)))));
+  if (w.topWords.length) parts.push(tint("t3", "最常用的字詞", w.topWords.map((x, i) => el("div", {}, el("small", { class: "note" }, `#${i + 1} `), el("b", {}, x.word), el("small", { class: "note" }, `  ${x.count.toLocaleString()} 次`)))));
+  if (s.topEmojis.length) parts.push(tint("t4", "最常用的 emoji", el("div", { class: "emo" }, s.topEmojis.join(" "))));
+  if (s.stickers.total) parts.push(tint("t5", "貼圖", el("div", { class: "num" }, unit(s.stickers.total.toLocaleString(), "張貼圖")), s.stickers.list.map((p) => rowBar(p.name, p.pct, color(p.name)))));
+
+  mount($("story"), el("h1", {}, title || "對話統計"), el("p", { class: "sub" }, `${s.total.toLocaleString()} 則訊息 (以下統計全部由你的瀏覽器計算,沒有送出)`), ...parts);
+}
+
+// ---------- 報告 ----------
+const rich = (text) => text.split("**").map((s, i) => (i % 2 ? el("strong", {}, s) : s));
+
+function renderReport(r, stats, dropped, usage, windowed) {
+  const root = $("report");
+  mount(root,
+    el("h2", {}, "報告"),
+    el("h1", { class: "headline" }, r.headline),
+    el("div", { class: "card persona" }, el("div", { class: "av" }, "🧐"), el("div", {}, el("strong", {}, PERSONA.name), el("div", { class: "note" }, "讀完整段對話,說出他的真心話。"))),
+    windowed ? el("p", { class: "note" }, `報告只讀了最近 ${stats.totalMessages} 則 (${stats.from} ~ ${stats.to}),較早的訊息沒有納入。`) : null,
+    el("div", { class: "rpt" }, r.blocks.map((b) => b.kind === "quote"
+      ? el("div", { class: "qrow" }, el("small", {}, [b.speaker, b.date].filter(Boolean).join(" · ")), el("div", { class: "qb" }, b.text))
+      : el("p", {}, rich(b.text)))),
+    dropped ? el("p", { class: "note" }, `已過濾 ${dropped} 則無法對應原文的引用。`) : null,
     el("h2", {}, "成員檔案"),
     r.people.map((p) => {
       const s = stats.people.find((x) => x.name === p.name);
-      return el("div", { class: "card" },
-        el("div", { class: "big" }, `${p.name} · ${p.title}`),
-        el("p", {}, p.description),
-        p.signature_phrases.map((t) => el("span", { class: "tag" }, `「${t}」`)),
-        el("ul", {}, p.quirks.map((q) => el("li", {}, q))),
-        s ? el("p", { class: "note" }, `${s.messages} 則 · 平均 ${s.avgChars} 字 · 深夜發言 ${s.lateNightMessages} · 開話題 ${s.conversationOpeners} 次` +
-          (s.medianReplyMinutes != null ? ` · 回覆中位數 ${s.medianReplyMinutes} 分` : "")) : null);
+      return el("div", { class: "card pcard" }, el("div", { class: "t" }, `${p.name} · ${p.title}`), el("div", {}, p.description),
+        s ? el("div", { class: "note" }, `${s.messages} 則 · 平均 ${s.avgChars} 字 · 深夜發言 ${s.lateNightMessages} · 開話題 ${s.conversationOpeners} 次`
+          + (s.medianReplyMinutes != null ? ` · 回覆中位數 ${s.medianReplyMinutes} 分` : "")) : null);
     }),
-
-    el("h2", {}, "頒獎典禮"),
-    r.awards.map((a) => el("div", { class: "card" }, el("strong", {}, `${a.award} → ${a.winner}`), el("div", {}, a.reason))),
-
-    el("h2", {}, "名場面"),
-    r.highlights.map((h) => el("div", { class: "quote" }, `「${h.quote}」`, el("small", {}, `${h.speaker} · ${h.date}`), el("div", {}, h.comment))),
-    dropped ? el("p", { class: "note" }, `已過濾 ${dropped} 則無法對應原文的引用。`) : null,
-
-    el("h2", {}, "內梗辭典"),
-    r.inside_jokes.map((j) => el("div", {}, el("strong", {}, j.term), `:${j.meaning}`)),
-
-    el("h2", {}, "時間軸"),
-    el("ul", {}, r.timeline.map((t) => el("li", {}, el("strong", {}, t.when), ` ${t.event}`))),
-
-    el("h2", {}, "數字統計"),
-    el("div", { class: "card", style: "overflow-x:auto" }, el("table", {},
-      el("tr", {}, ["名字", "訊息", "貼圖", "照片", "收回", "深夜", "最活躍時", "常用表情"].map((h) => el("th", {}, h))),
-      stats.people.slice(0, 12).map((p) => el("tr", {}, [p.name, p.messages, p.stickers, p.photos, p.unsent, p.lateNightMessages, `${p.peakHour}點`, p.topEmojis.join(" ")].map((c) => el("td", {}, c)))))),
-
     el("p", {}, r.closing),
     el("p", { class: "note" }, `本報告為 AI 依文字內容產生的娛樂用途分析,不代表事實。 (輸入 ${usage.input_tokens} / 輸出 ${usage.output_tokens} tokens)`),
     el("button", { class: "ghost", id: "dl" }, "下載 JSON"));

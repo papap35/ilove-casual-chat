@@ -1,46 +1,15 @@
 import { readFileSync } from "node:fs";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const code = html.split("// <parser>")[1].split("// </parser>")[0];
-const api = new Function(code + "\nreturn {parseLine,computeStats,toTranscript,chunkTranscript,verifyQuotes};")();
-const sample = `[LINE] 與朋友群的聊天記錄
-儲存日期：2026/11/26 10:00
+const api = new Function(code + "\nreturn {parseLine,groupTitle,cleanName,applyNames,computeStats,computeStory,wordStats,toTranscript,chunkTranscript,verifyBlocks};")();
+const eq = (a, b, msg) => { if (JSON.stringify(a) !== JSON.stringify(b)) { console.error("FAIL", msg, "\n got:", JSON.stringify(a), "\n exp:", JSON.stringify(b)); process.exit(1); } };
 
-2026/11/20（五）
-14:06\t小安\t週六還是照約嗎？
-14:10\t阿明\t我訂了信義區那間，8 點
-14:14\t小安\t啊抱歉我現在才看到 😅
-14:18\t阿明\t"你凌晨兩點還在發限動
-我都看到了"
-14:20\t小安\t[貼圖]
-14:21\t阿明加入群組
-2026/11/21（六）
-上午12:30\t小安\t哈哈哈哈
-下午3:05\t阿明\t[照片]
-下午3:06\t小安\t已收回訊息
-`;
-const m = api.parseLine(sample);
-const eq = (a, b, msg) => { if (JSON.stringify(a) !== JSON.stringify(b)) { console.error("FAIL", msg, a, b); process.exit(1); } };
-eq(m.length, 8, "count (system msg skipped)");
-eq(m[3].text, "你凌晨兩點還在發限動\n我都看到了", "multiline + quote strip");
-eq(m[4].kind, "sticker", "sticker");
-eq(new Date(m[5].ts).getHours(), 0, "上午12 -> 0");
-eq(new Date(m[6].ts).getHours(), 15, "下午3 -> 15");
-eq(m[7].kind, "unsent", "unsent");
-const s = api.computeStats(m);
-eq(s.people.length, 2, "people");
-eq(s.people.find(p=>p.name==="小安").lateNightMessages, 1, "late night");
-const t = api.toTranscript(m);
-eq(t.split("\n")[0], "## 2026/11/20", "transcript header");
-const v = api.verifyQuotes([{quote:"你凌晨兩點還在發限動"},{quote:"這句不存在"}], m);
-eq([v.kept.length, v.dropped], [1,1], "quote verify");
-eq(api.chunkTranscript("a\nb\nc", 3).length, 2, "chunk");
-
-// 真實格式 (使用者提供): 雙向隔離字元、空名字欄系統訊息、(emoji)、多行引號
+// ---- 1. 真實格式 (使用者提供的前幾行) ----
 const real = `[LINE] 東海岸之聲名下的弓箭手村的聊天記錄
 儲存日期： 2026/11/26 13:18
 
 2025/08/28（四）
-12:30\t\t\u2068\u2068Joseph Tree\u2069\u2069已新增\u2068\u2068許昶慶(Chang)\u2069\u2069, \u2068陳少博\u2069\u2069至群組。
+12:30\t\t⁨⁨Joseph Tree⁩⁩已新增⁨⁨許昶慶(Chang)⁩⁩, ⁨陳少博⁩⁩至群組。
 12:30\tJoseph Tree\t我好懶 哈 還是拉群好了~
 12:31\t陳少博\t笑死，乾脆明天去北騎樓下拉轉好了
 12:35\t許昶慶(Chang)\t"六：竹山、阿里山
@@ -52,8 +21,76 @@ const real = `[LINE] 東海岸之聲名下的弓箭手村的聊天記錄
 `;
 const r = api.parseLine(real);
 eq(r.length, 5, "real: system line skipped");
-eq([...new Set(r.map(x=>x.name))], ["Joseph Tree","陳少博","許昶慶(Chang)","陳昀生 Shane"], "real: names");
+eq(api.groupTitle(real), "東海岸之聲名下的弓箭手村", "group title");
 eq(r[2].text, "六：竹山、阿里山\n日：塔塔加\n一：武嶺", "real: multiline");
-const rs = api.computeStats(r);
-eq(rs.people.find(p=>p.name==="許昶慶(Chang)").emojiCount, 1, "real: emoji placeholder");
-console.log("all parser tests passed");
+eq(api.computeStats(r).people.find((p) => p.name === "許昶慶(Chang)").emojiCount, 1, "(emoji) placeholder");
+
+// ---- 2. 名字清理 / 合併 ----
+eq(api.cleanName("Ellen🌟瑩"), "Ellen瑩", "strip emoji");
+eq(api.cleanName("紫綺💖"), "紫綺", "strip emoji 2");
+eq(api.cleanName("Annie❤️"), "Annie", "strip emoji + VS16");
+eq(api.cleanName("劉ღ"), "劉", "strip georgian deco");
+eq(api.cleanName("🌟"), "🌟", "all-symbol name is kept");
+eq(api.cleanName("陳昀生 Shane"), "陳昀生 Shane", "plain name untouched");
+const merged = api.applyNames([{ name: "A", ts: 0 }, { name: "A2", ts: 0 }], new Map([["A", "阿"], ["A2", "阿"]]));
+eq(merged.map((m) => m.name), ["阿", "阿"], "same display name merges");
+
+// ---- 3. 合成對話,驗證故事統計 ----
+const msgs = [];
+const T = (d, h, mi = 0) => new Date(2026, 0, d, h, mi).getTime();
+const add = (ts, name, text) => msgs.push({ ts, name, text, kind: api.parseLine ? (/^\[貼圖\]$/.test(text) ? "sticker" : text === "已收回訊息" ? "unsent" : "text") : "text" });
+// 1/1~1/10 每天有聊 (連續 10 天);1/11 沒聊;1/12~1/15 有聊;1/16、1/17 沒聊;1/18 有聊
+for (let d = 1; d <= 10; d++) {
+  add(T(d, 9 + (d % 3)), d % 2 ? "小安" : "阿明", "早安 xd");           // 每天誰先開口:小安奇數天、阿明偶數天
+  add(T(d, 10 + (d % 3), 5), "小安", "好猛 xd");
+  add(T(d, 23), "阿明", "晚上要騎車嗎 xd");                              // 深夜 23 點
+}
+add(T(3, 12), "小安", "[貼圖]"); add(T(3, 12, 1), "小安", "[貼圖]"); add(T(4, 12), "阿明", "[貼圖]");
+add(T(5, 12), "阿明", "已收回訊息");
+add(T(6, 15), "小安", "哈哈 🤣🤣🤣🤣 太好笑");                           // 連打 4 個
+add(T(7, 15), "阿明", "🤣 笑死");
+add(T(7, 16), "路人", "我是路人");
+add(T(8, 16), "小安", "這是一則比較長的訊息，用來測最長訊息，一二三四五六七八九十，再多一點字");
+for (let d = 12; d <= 15; d++) add(T(d, 10), "阿明", "早 xd");
+add(T(18, 10), "小安", "最後一天第一則");
+add(T(18, 11), "阿明", "最後一天第二則");
+msgs.sort((a, b) => a.ts - b.ts);
+
+const s = api.computeStory(msgs);
+eq(s.total, msgs.length, "total");
+eq(s.streakDays, 10, "longest streak = 10 consecutive days");
+eq(s.longestGapDays, 2, "longest silent stretch = 2 days (1/16,1/17)");
+eq(s.busiest.date, "2026/01/03", "busiest day (has stickers)");
+eq(s.unsent, [{ name: "阿明", count: 1 }], "unsent");
+eq(s.stickers.total, 3, "sticker total");
+eq(s.stickers.list[0], { name: "小安", pct: 67 }, "sticker share");
+eq(s.laugh.emoji, "🤣", "laugh emoji");
+eq(s.laugh.record, { run: 4, name: "小安" }, "laugh record");
+eq(s.laugh.list[0].name, "小安", "laugh top");
+eq(s.lastDay.date, "2026/01/18", "last day");
+eq(s.lastDay.msgs.map((m) => m.text), ["最後一天第一則", "最後一天第二則"], "last day msgs order");
+eq(s.firstDay.date, "2026/01/01", "first day");
+eq(s.longest[0].name, "小安", "longest msg owner");
+eq(s.hours[23], 10, "hour histogram 23h");
+eq(s.nightPct > 0, true, "night pct");
+const ao = Object.fromEntries(s.openers.map((o) => [o.name, o.pct]));
+eq(ao["小安"] > 0 && ao["阿明"] > 0, true, "openers both present");
+eq(s.share.reduce((a, p) => a + p.pct, 0) + s.otherPct >= 99, true, "shares sum ~100");
+
+// ---- 4. 字詞 / 口頭禪 (Intl.Segmenter) ----
+const w = api.wordStats(msgs, new Set(msgs.map((m) => m.name)));
+eq(w.catchphrases.some((x) => x.word === "xd"), true, "xd is a catchphrase");
+eq(w.catchphrases.find((x) => x.word === "xd").count >= 30, true, "xd count");
+eq(w.topWords.every((x) => x.word !== "xd"), true, "catchphrase excluded from top words");
+eq(w.topWords.some((x) => ["小安", "阿明"].includes(x.word)), false, "names excluded");
+
+// ---- 5. transcript / chunk / 引用驗證 ----
+eq(api.toTranscript(msgs).split("\n")[0], "## 2026/01/01", "transcript header");
+eq(api.chunkTranscript("a\nb\nc", 3).length, 2, "chunk");
+const v = api.verifyBlocks([
+  { kind: "text", text: "敘事" },
+  { kind: "quote", text: "好猛 xd" },
+  { kind: "quote", text: "這句根本不存在" },
+], msgs);
+eq([v.kept.length, v.dropped], [2, 1], "quote verification keeps text + real quote, drops fake");
+console.log("all tests passed");
